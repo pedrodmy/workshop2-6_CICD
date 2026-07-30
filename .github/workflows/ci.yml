@@ -1,0 +1,59 @@
+name: CI/CD - Pipeline de Integracao e Entrega Continua
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  build-and-test:
+    name: Build e Testes
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout do codigo
+        uses: actions/checkout@v4
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Instalar dependencias
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Lint com flake8
+        run: flake8 src/ tests/ --max-line-length=100
+
+      - name: Executar testes e gerar relatorio HTML
+        run: python -m pytest tests/ -v --html=report/index.html --self-contained-html
+
+      - name: Enviar relatorio como artefato do Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: report
+
+  deploy:
+    name: Deploy (CD)
+    needs: build-and-test
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Publicar no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
